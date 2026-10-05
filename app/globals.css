@@ -301,6 +301,15 @@ html[data-theme="rose-pine"] {
   }
 }
 
+/* Keep the shared mobile filter strip scrollable without drawing a scrollbar. */
+.filter-strip-scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.filter-strip-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 /* custom scrollbars + animations from the design export */
 .bd-scroll::-webkit-scrollbar {
   width: 10px;

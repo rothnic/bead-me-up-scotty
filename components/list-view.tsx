@@ -150,8 +150,8 @@ export function ListView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex flex-shrink-0 items-center gap-3 border-b border-border bg-[var(--surface)] p-[14px_22px]">
-        <div className="mr-1 flex flex-col gap-px">
+      <header className="flex flex-shrink-0 flex-wrap items-start gap-3 border-b border-border bg-[var(--surface)] p-[12px_14px] md:items-center md:p-[14px_22px]">
+        <div className="mr-1 flex w-full min-w-0 flex-col gap-px md:w-auto">
           <h1 className="m-0 text-base font-[650] tracking-[-.01em]">List</h1>
           <span className="text-[11.5px] text-[var(--text-3)]">
             {rows.length} beads · drag to set run-order
