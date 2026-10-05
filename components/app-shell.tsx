@@ -202,7 +202,7 @@ export function AppShell({ projectId }: { projectId: string }) {
       }}
     >
       <div className="flex h-full flex-col overflow-hidden bg-background text-foreground text-sm">
-        <ReadOnlyBanner />
+        <ReadOnlyBanner reserveSpace={isLoading} />
         <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar
           view={view}
