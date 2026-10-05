@@ -220,14 +220,23 @@ try {
   });
   const listHandleA = page.getByRole("button", { name: "Reorder touch-a", exact: true });
   const listHandleB = page.getByRole("button", { name: "Reorder touch-b", exact: true });
+  const listRowA = await card("touch-a").boundingBox();
+  const listRowB = await card("touch-b").boundingBox();
+  assert.ok(listRowA && listRowB && listRowA.y < listRowB.y, "fixture A starts above B in List");
   const listOrderWritesBefore = writes.filter((write) => write.kind === "order").length;
-  const listDragSource = await center(listHandleA);
-  const listDragDestination = await center(listHandleB);
-  await gesture(listDragSource, listDragDestination, 300);
+  await gesture(await center(listHandleA), await center(listHandleB), 300);
+  const listOrderWrite = writes.filter((write) => write.kind === "order").at(-1);
+  assert.ok(listOrderWritesBefore < writes.filter((write) => write.kind === "order").length, "List drag submits an order write");
+  assert.ok(listOrderWrite?.body?.ids, "List order write includes the resulting ID order");
   assert.ok(
-    writes.filter((write) => write.kind === "order").length > listOrderWritesBefore,
-    "a deliberate long-press touch drag on the List handle reorders a row",
+    listOrderWrite.body.ids.indexOf("touch-b") < listOrderWrite.body.ids.indexOf("touch-a"),
+    "List order payload places the dragged A row after its B target",
   );
+  console.log("LIST_ORDER_EVIDENCE " + JSON.stringify({
+    columnId: listOrderWrite.body.columnId,
+    indexB: listOrderWrite.body.ids.indexOf("touch-b"),
+    indexA: listOrderWrite.body.ids.indexOf("touch-a"),
+  }));
   console.log("PASS: a deliberate long-press trusted touch drag on the List handle reorders a row");
 
   await page.getByRole("button", { name: "Board", exact: true }).click();
@@ -253,14 +262,27 @@ try {
   assert.ok(cardA && cardB, "both reorder cards must exist");
   const pointA = await center(card("touch-a"));
   const pointB = await center(card("touch-b"));
+  assert.notEqual(cardA.y, cardB.y, "fixture cards occupy distinct Board ranks");
+  const sourceId = cardA.y < cardB.y ? "touch-a" : "touch-b";
+  const destinationId = sourceId === "touch-a" ? "touch-b" : "touch-a";
   const source = cardA.y < cardB.y ? pointA : pointB;
   const destination = cardA.y < cardB.y ? pointB : pointA;
   const orderWritesBefore = writes.filter((write) => write.kind === "order").length;
   await gesture(source, destination, 300);
+  const boardOrderWrite = writes.filter((write) => write.kind === "order").at(-1);
+  assert.ok(orderWritesBefore < writes.filter((write) => write.kind === "order").length, "Board drag submits an order write");
+  assert.ok(boardOrderWrite?.body?.ids, "Board order write includes the resulting ID order");
   assert.ok(
-    writes.filter((write) => write.kind === "order").length > orderWritesBefore,
-    "a deliberate long-press touch drag reorders a Board card",
+    boardOrderWrite.body.ids.indexOf(destinationId) < boardOrderWrite.body.ids.indexOf(sourceId),
+    "Board order payload places the dragged card after its target",
   );
+  console.log("BOARD_ORDER_EVIDENCE " + JSON.stringify({
+    columnId: boardOrderWrite.body.columnId,
+    draggedId: sourceId,
+    targetId: destinationId,
+    targetIndex: boardOrderWrite.body.ids.indexOf(destinationId),
+    draggedIndex: boardOrderWrite.body.ids.indexOf(sourceId),
+  }));
   console.log("PASS: a deliberate long-press trusted touch drag reorders a Board card");
 
   assert.deepEqual(errors, [], "the isolated page has no runtime errors");
