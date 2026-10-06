@@ -20,6 +20,20 @@ function find(id: string): Bead {
 
 export const demoStore: BeadsStore = {
   kind: "demo",
+  source: {
+    kind: "demo",
+    managed: false,
+    label: "Demo sample data",
+    scope: "in-memory sample; never real source data",
+    root: null,
+    cli: null,
+    nativeProjectId: null,
+    database: null,
+    readOnly: false,
+    capabilities: { comments: true, priority: true },
+    readAt: null,
+    newestRecordUpdatedAt: null,
+  },
   async list() {
     return beads.map((b) => ({ ...b }));
   },

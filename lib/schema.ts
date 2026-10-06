@@ -187,7 +187,14 @@ export const updateInputSchema = z.object({
 });
 export type UpdateInput = z.infer<typeof updateInputSchema>;
 
-export const addCommentSchema = z.object({ text: z.string().min(1) });
+export const addCommentSchema = z.object({
+  text: z.string().trim().min(1).max(10000),
+}).strict();
+
+/** Managed mode permits exactly this one native field through PATCH. */
+export const managedPrioritySchema = z.object({
+  priority: z.number().int().min(0).max(4),
+}).strict();
 
 export const addDepSchema = z.object({
   depends_on_id: z.string().min(1),

@@ -1,16 +1,20 @@
 import type { Bead, CreateInput, UpdateInput, DepType } from "./schema";
+import type { StoreCapabilities, StoreKind, StoreSource } from "./source";
 import type { UpdateStatus, UpdateResult, UpdateChannel, UpdateTarget } from "./update-types";
 
 export interface Meta {
-  kind: "bd" | "demo";
+  kind: StoreKind;
   humanActor: string;
   humanAllowlist: string[];
   pollIntervalMs: number;
   gamification?: boolean;
   /** Viewer mode (SCOTTY_READ_ONLY): the server refuses writes; the UI hides them. */
   readOnly?: boolean;
+  /** Server-derived narrow project-data capabilities. */
+  capabilities?: StoreCapabilities;
   /** Label prefix (SCOTTY_LANE_PREFIX) that partitions work into Focus-view lane chips. */
   lanePrefix?: string | null;
+  source?: StoreSource | null;
 }
 export interface BeadsResponse {
   beads: Bead[];
@@ -80,13 +84,24 @@ export interface ProjectInfo {
   addedAt?: string;
   lastOpened?: string;
   hasBeads: boolean;
+  managed?: boolean;
+  sourceLabel?: string;
+  sourceScope?: string;
+  readOnly?: boolean;
+  backend?: "bd" | "br";
+  nativeProjectId?: string | null;
+  database?: string;
+  capabilities?: StoreCapabilities;
+  city?: string;
+  rig?: string;
 }
 export interface ProjectsResponse {
   projects: ProjectInfo[];
+  managedRegistry: boolean;
 }
 
 export interface DoctorResponse {
-  kind: "bd" | "demo";
+  kind: StoreKind;
   ok: boolean;
   version?: string;
   repoPath: string;
@@ -97,6 +112,7 @@ export interface DoctorResponse {
     humanAllowlist: string[];
     pollIntervalMs: number;
   };
+  source?: StoreSource;
 }
 
 export interface FsEntry {
@@ -155,7 +171,7 @@ const enc = encodeURIComponent;
 const base = (projectId: string) => `/api/p/${enc(projectId)}`;
 
 export const api = {
-  viewerMode: () => request<{ readOnly: boolean }>("/api/viewer-mode", { cache: "no-store" }),
+  viewerMode: () => request<{ readOnly: boolean; locked?: boolean }>("/api/viewer-mode", { cache: "no-store" }),
   setViewerMode: (readOnly: boolean) => request<{ readOnly: boolean }>("/api/viewer-mode", {
     method: "PUT", body: JSON.stringify({ readOnly }),
   }),

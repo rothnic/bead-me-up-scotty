@@ -16,6 +16,9 @@ interface AppContextValue {
   humanAllowlist: string[];
   /** Viewer mode (SCOTTY_READ_ONLY): hide write affordances; the server refuses writes anyway. */
   readOnly: boolean;
+  /** Managed source comment and priority capabilities, after viewer-mode gating. */
+  canComment: boolean;
+  canPriority: boolean;
   loading: boolean;
   error?: string;
   selectedBeadId: string | null;

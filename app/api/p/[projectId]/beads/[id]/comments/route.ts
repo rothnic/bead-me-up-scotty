@@ -1,7 +1,7 @@
 import { getStore } from "@/lib/store";
 import { getConfig } from "@/lib/config";
 import { addCommentSchema } from "@/lib/schema";
-import { ok, fail } from "@/lib/api";
+import { assertWriteCapability, ok, fail } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +11,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
     const store = await getStore(projectId);
     const cfg = getConfig();
     const { text } = addCommentSchema.parse(await req.json());
+    assertWriteCapability(req, store, "comments");
     const bead = await store.addComment(id, text, cfg.humanActor);
     return ok(bead);
   } catch (e) {

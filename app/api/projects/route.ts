@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { listProjects, addProject, DEMO_PROJECT } from "@/lib/config";
+import { listProjects, addProject, DEMO_PROJECT, isManagedRegistryMode } from "@/lib/config";
 import type { ProjectEntry, DemoProject } from "@/lib/config";
 import { ok, fail } from "@/lib/api";
 import { z } from "zod";
@@ -16,12 +16,13 @@ function annotate(p: ProjectEntry | DemoProject) {
       hasBeads = false;
     }
   }
-  return { ...p, hasBeads };
+  return { ...p, hasBeads, managed: isManagedRegistryMode() };
 }
 
 export async function GET() {
-  const projects = [DEMO_PROJECT, ...listProjects()].map(annotate);
-  return ok({ projects });
+  const managedRegistry = isManagedRegistryMode();
+  const projects = (managedRegistry ? listProjects() : [DEMO_PROJECT, ...listProjects()]).map(annotate);
+  return ok({ projects, managedRegistry });
 }
 
 const addSchema = z.object({ path: z.string().min(1) });

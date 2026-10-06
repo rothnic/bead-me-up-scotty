@@ -117,6 +117,21 @@ function SettingsForm({ data }: { data: DoctorResponse }) {
   });
 
   const isDemo = data.kind === "demo";
+  const source = data.source;
+  const managed = source?.managed === true;
+  const sourceWrites = [
+    ...(source?.capabilities.comments ? ["comments"] : []),
+    ...(source?.capabilities.priority ? ["priority"] : []),
+  ];
+  const sourceDetails = source
+    ? [
+        `${source.label} (${source.kind})`,
+        source.database ? `database ${source.database}` : undefined,
+        source.readOnly || sourceWrites.length === 0
+          ? "read-only"
+          : `${sourceWrites.join(" + ")} editable`,
+      ].filter(Boolean).join(" · ")
+    : undefined;
 
   return (
     <div className="mx-auto flex max-w-[620px] flex-col gap-[18px]">
@@ -124,7 +139,7 @@ function SettingsForm({ data }: { data: DoctorResponse }) {
         <div className="flex flex-col gap-[6px]">
           <span className="text-[12px] text-[var(--text-2)]">{data.project?.name ?? "—"}</span>
           <span className="break-all font-mono text-[12px] text-[var(--text-3)]">
-            {isDemo ? "built-in sample data (no path)" : data.repoPath}
+            {isDemo ? "built-in sample data (no path)" : managed ? "Managed source registry" : data.repoPath}
           </span>
         </div>
         <div className="flex items-center gap-2 text-[12px] text-[var(--text-2)]">
@@ -139,8 +154,11 @@ function SettingsForm({ data }: { data: DoctorResponse }) {
               : `${data.message}${data.version ? ` · ${data.version}` : ""}`}
           </span>
         </div>
+        {sourceDetails && <div className="text-[11.5px] text-[var(--text-3)]">Source: {sourceDetails}</div>}
         <div className="text-[11.5px] text-[var(--text-3)]">
-          Use the project menu on desktop or open the mobile Menu to switch projects.
+          {managed
+            ? "This project comes from the managed source registry. Adding projects is disabled."
+            : "Use the project menu on desktop or open the mobile Menu to switch projects."}
         </div>
       </Card>
 

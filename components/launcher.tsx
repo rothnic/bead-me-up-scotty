@@ -16,6 +16,7 @@ export function Launcher() {
   const { mode, toggle } = useTheme();
 
   const projects = data?.projects ?? [];
+  const canRegister = !!data && !data.managedRegistry;
   const demo = projects.find((p) => p.id === "demo");
   const real = projects.filter((p) => p.id !== "demo");
 
@@ -48,14 +49,16 @@ export function Launcher() {
           <h2 className="text-[13px] font-[650] uppercase tracking-[.03em] text-[var(--text-3)]">
             Projects
           </h2>
-          <button
-            onClick={() => setAddOpen(true)}
-            className="flex h-[36px] items-center gap-[7px] rounded-[9px] px-[14px] text-[13px] font-semibold text-white"
-            style={{ background: "var(--brand)", boxShadow: "0 2px 8px -2px var(--brand)" }}
-          >
-            <Plus size={15} />
-            Add project
-          </button>
+          {canRegister && (
+            <button
+              onClick={() => setAddOpen(true)}
+              className="flex h-[36px] items-center gap-[7px] rounded-[9px] px-[14px] text-[13px] font-semibold text-white"
+              style={{ background: "var(--brand)", boxShadow: "0 2px 8px -2px var(--brand)" }}
+            >
+              <Plus size={15} />
+              Add project
+            </button>
+          )}
         </div>
 
         {isLoading ? (
@@ -68,7 +71,7 @@ export function Launcher() {
             {real.map((p) => (
               <ProjectCard key={p.id} project={p} />
             ))}
-            {real.length === 0 && (
+            {real.length === 0 && canRegister && (
               <button
                 onClick={() => setAddOpen(true)}
                 className="flex min-h-[112px] flex-col items-center justify-center gap-2 rounded-[13px] border border-dashed border-[var(--border-strong)] p-5 text-[var(--text-3)] hover:border-[var(--brand)] hover:text-[var(--brand)]"
@@ -81,7 +84,7 @@ export function Launcher() {
         )}
       </div>
 
-      <FolderBrowserModal open={addOpen} onOpenChange={setAddOpen} />
+      {canRegister && <FolderBrowserModal open={addOpen} onOpenChange={setAddOpen} />}
     </div>
   );
 }
@@ -139,6 +142,13 @@ function ProjectCard({ project }: { project: ProjectInfo }) {
     },
     onError: (e) => toast.error((e as Error).message),
   });
+  const sourceDetails = project.managed
+    ? [
+        project.sourceLabel,
+        project.backend ? `backend ${project.backend}` : undefined,
+        project.sourceScope,
+      ].filter(Boolean).join(" · ") || "Managed source"
+    : project.path;
 
   return (
     <CardShell onClick={() => router.push(`/p/${project.id}`)}>
@@ -153,24 +163,30 @@ function ProjectCard({ project }: { project: ProjectInfo }) {
               className="h-[6px] w-[6px] rounded-full"
               style={{ background: project.hasBeads ? "#22c55e" : "#ef4444" }}
             />
-            {project.hasBeads ? "bd repo" : "no .beads found"}
+            {project.managed
+              ? `${project.backend ?? "managed"} source`
+              : project.hasBeads
+                ? "bd repo"
+                : "no .beads found"}
           </div>
         </div>
-        <button
-          title="Remove from list"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (confirm(`Remove "${project.name}" from the list? This does not delete any files.`)) {
-              remove.mutate();
-            }
-          }}
-          className="flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-lg text-[var(--text-3)] opacity-0 transition-opacity hover:bg-[var(--surface-3)] hover:text-[#ef4444] group-hover:opacity-100"
-        >
-          <Trash2 size={14} />
-        </button>
+        {!project.managed && (
+          <button
+            title="Remove from list"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm(`Remove "${project.name}" from the list? This does not delete any files.`)) {
+                remove.mutate();
+              }
+            }}
+            className="flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-lg text-[var(--text-3)] opacity-0 transition-opacity hover:bg-[var(--surface-3)] hover:text-[#ef4444] group-hover:opacity-100"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
       </div>
-      <div className="truncate font-mono text-[11px] text-[var(--text-3)]" dir="rtl" title={project.path ?? ""}>
-        {project.path}
+      <div className={`truncate text-[11px] text-[var(--text-3)]${project.managed ? "" : " font-mono"}`} dir={project.managed ? undefined : "rtl"} title={sourceDetails ?? ""}>
+        {project.managed ? sourceDetails : project.path}
       </div>
     </CardShell>
   );

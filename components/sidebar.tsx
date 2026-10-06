@@ -3,6 +3,7 @@ import * as React from "react";
 import { Icon } from "@/components/icons";
 import { useTheme } from "@/components/theme-provider";
 import { useApp, type View } from "@/components/app-context";
+import type { StoreKind } from "@/lib/source";
 import { ProjectSwitcher } from "@/components/project-switcher";
 import {
   DropdownMenu,
@@ -62,7 +63,7 @@ export function Sidebar({
 }: {
   view: View;
   onView: (v: View) => void;
-  kind?: "bd" | "demo";
+  kind?: StoreKind;
   projectId: string;
   projectName?: string;
   live?: boolean;

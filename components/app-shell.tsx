@@ -29,6 +29,7 @@ import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useViewerMode } from "@/hooks/use-viewer-mode";
 import { useNotificationActivation } from "@/hooks/use-notifications";
+import type { StoreCapabilities } from "@/lib/source";
 import { Menu } from "lucide-react";
 
 export function AppShell({ projectId, projectName }: { projectId: string; projectName?: string }) {
@@ -71,7 +72,17 @@ export function AppShell({ projectId, projectName }: { projectId: string; projec
   const beads = React.useMemo(() => data?.beads ?? [], [data]);
   const index = React.useMemo(() => makeIndex(beads), [beads]);
   const viewerMode = useViewerMode();
-  const readOnly = viewerMode.data?.readOnly ?? true;
+  const viewerReadOnly = viewerMode.data?.readOnly ?? true;
+  const managedSource = data?.meta?.source?.managed === true;
+  const capabilities: StoreCapabilities =
+    data?.meta?.capabilities ??
+    data?.meta?.source?.capabilities ??
+    (managedSource ? { comments: false, priority: false } : { comments: true, priority: true });
+  const readOnly = viewerReadOnly || managedSource;
+  const canComment =
+    !viewerReadOnly && !data?.meta?.source?.readOnly && capabilities.comments;
+  const canPriority =
+    !viewerReadOnly && !data?.meta?.source?.readOnly && capabilities.priority;
   // Preserve the requested link until a successful response establishes whether
   // the bead exists. A network error must not erase a valid bookmark.
   const loaded = !isLoading && !error && !!data;
@@ -213,6 +224,8 @@ export function AppShell({ projectId, projectName }: { projectId: string; projec
         meta: data?.meta,
         humanAllowlist: data?.meta?.humanAllowlist ?? [],
         readOnly,
+        canComment,
+        canPriority,
         loading: isLoading,
         error: errorMessage,
         selectedBeadId,

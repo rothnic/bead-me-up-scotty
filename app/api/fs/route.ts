@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { canonicalPathWithinRoot, filesystemRoot, isManagedRegistryMode } from "@/lib/config";
 import { ok, fail } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -23,9 +24,12 @@ function hasBeads(p: string): boolean {
 
 export async function GET(req: Request) {
   try {
+    if (isManagedRegistryMode()) {
+      return ok({ error: "Filesystem browsing is disabled for the explicit source registry", code: "read_only" }, 403);
+    }
     const url = new URL(req.url);
     const home = os.homedir();
-    const root = process.env.BEADS_FS_ROOT ? path.resolve(process.env.BEADS_FS_ROOT) : null;
+    const root = filesystemRoot();
     const rawRequested = url.searchParams.get("path");
     // Expand a leading ~ so typed/pasted home-relative paths resolve.
     const requested =
@@ -34,11 +38,8 @@ export async function GET(req: Request) {
         : rawRequested?.startsWith("~/")
           ? path.join(home, rawRequested.slice(2))
           : rawRequested;
-    const target = path.resolve(requested && requested.trim() ? requested : root || home);
-
-    if (root && target !== root && !target.startsWith(root + path.sep)) {
-      return ok({ error: "Path is outside the allowed root", code: "eacces" }, 403);
-    }
+    const targetInput = path.resolve(requested && requested.trim() ? requested : root || home);
+    let target = targetInput;
 
     let stat: fs.Stats;
     try {
@@ -57,6 +58,8 @@ export async function GET(req: Request) {
       return ok({ error: `Not a directory: ${target}`, code: "enotdir" }, 400);
     }
 
+    target = root ? canonicalPathWithinRoot(targetInput, root) : fs.realpathSync(targetInput);
+
     let dirents: fs.Dirent[];
     try {
       dirents = fs.readdirSync(target, { withFileTypes: true });
@@ -69,21 +72,17 @@ export async function GET(req: Request) {
     }
 
     const entries = dirents
-      .filter((d) => {
-        if (d.name.startsWith(".")) return false; // hide dotfolders
-        if (d.isDirectory()) return true;
-        if (d.isSymbolicLink()) {
-          try {
-            return fs.statSync(path.join(target, d.name)).isDirectory();
-          } catch {
-            return false;
-          }
-        }
-        return false;
-      })
-      .map((d) => {
+      .filter((d) => !d.name.startsWith(".") && (d.isDirectory() || d.isSymbolicLink()))
+      .flatMap((d) => {
         const full = path.join(target, d.name);
-        return { name: d.name, path: full, hasBeads: hasBeads(full) };
+        try {
+          const canonical = root ? canonicalPathWithinRoot(full, root) : fs.realpathSync(full);
+          if (!fs.statSync(canonical).isDirectory()) return [];
+          return [{ name: d.name, path: canonical, hasBeads: hasBeads(canonical) }];
+        } catch {
+          // Hide symlinks that resolve outside the configured root.
+          return [];
+        }
       })
       .sort((a, b) => a.name.localeCompare(b.name));
 

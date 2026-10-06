@@ -191,8 +191,18 @@ function DrawerBody({
   onBack?: () => void;
   onClose: () => void;
 }) {
-  const { index, beads, humanAllowlist, meta, projectId, pushDetail, openCreate, readOnly } =
-    useApp();
+  const {
+    index,
+    beads,
+    humanAllowlist,
+    meta,
+    projectId,
+    pushDetail,
+    openCreate,
+    readOnly,
+    canComment,
+    canPriority,
+  } = useApp();
   const actor = meta?.humanActor ?? "you";
   const isDemo = meta?.kind === "demo";
 
@@ -481,7 +491,7 @@ function DrawerBody({
           <label className="flex flex-col gap-[5px]">
             <span className={fieldLabel}>Priority</span>
             <select
-              disabled={readOnly}
+              disabled={!canPriority}
               className={selectClass}
               value={String(bead.priority)}
               onChange={(e) =>
@@ -1000,7 +1010,7 @@ function DrawerBody({
               <div className="text-[12px] text-[var(--text-3)]">No comments yet.</div>
             )}
           </div>
-          <div className="flex items-start gap-[9px]">
+          {canComment && <div className="flex items-start gap-[9px]">
             <span
               className="flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
               style={{ background: "var(--brand)" }}
@@ -1012,13 +1022,13 @@ function DrawerBody({
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder={`Comment as ${actor}…`}
-                disabled={readOnly}
+                disabled={!canComment}
                 rows={2}
                 className="w-full resize-y rounded-[10px] border border-border bg-[var(--surface-2)] p-[9px_11px] text-[13px] leading-[1.5] text-[var(--text)] outline-none"
               />
               <div className="flex justify-end">
                 <button
-                  disabled={readOnly || !draft.trim() || addComment.isPending}
+                  disabled={!canComment || !draft.trim() || addComment.isPending}
                   onClick={() => {
                     const submitted = draft;
                     addComment.mutate({ id: bead.id, text: submitted.trim() }, {
@@ -1032,7 +1042,7 @@ function DrawerBody({
                 </button>
               </div>
             </div>
-          </div>
+          </div>}
         </Section>
 
         {/* Activity */}

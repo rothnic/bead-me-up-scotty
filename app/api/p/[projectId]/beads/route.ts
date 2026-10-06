@@ -21,8 +21,10 @@ export async function GET(_req: Request, { params }: Ctx) {
         humanAllowlist: cfg.humanAllowlist,
         pollIntervalMs: cfg.pollIntervalMs,
         gamification: cfg.gamification,
-        readOnly: isReadOnly(_req),
+        readOnly: isReadOnly(_req) || store.source?.readOnly === true,
+        capabilities: store.source?.capabilities ?? { comments: false, priority: false },
         lanePrefix: lanePrefix(),
+        source: store.source ?? null,
       },
     });
   } catch (e) {

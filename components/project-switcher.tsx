@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useProjects } from "@/hooks/use-projects";
 import { FolderBrowserModal } from "@/components/folder-browser-modal";
+import type { StoreKind } from "@/lib/source";
 
 export function ProjectSwitcher({
   projectId,
@@ -23,7 +24,7 @@ export function ProjectSwitcher({
 }: {
   projectId: string;
   projectName?: string;
-  kind?: "bd" | "demo";
+  kind?: StoreKind;
   /** Whether the SSE change stream is connected (real projects only). */
   live?: boolean;
   taskStatus: { loading: boolean; fetching: boolean; error?: string; updatedAt: number; hasData: boolean };
@@ -41,6 +42,7 @@ export function ProjectSwitcher({
   const currentName = projectName ?? current?.name ?? (projectId === "demo" ? "Demo" : projectId);
 
   const isDemo = kind === "demo" || projectId === "demo";
+  const canRegister = !!data && !data.managedRegistry;
   const isLive = !isDemo && !!live;
   const updatedAt = taskStatus.updatedAt > 0
     ? new Date(taskStatus.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -60,6 +62,23 @@ export function ProjectSwitcher({
               : isLive
                 ? "bd - live"
                 : "bd - project";
+  const capabilities = current?.capabilities;
+  const writableAreas = [
+    ...(capabilities?.comments ? ["comments"] : []),
+    ...(capabilities?.priority ? ["priority"] : []),
+  ];
+  const sourceDetails = [
+    current?.sourceLabel,
+    current?.backend ?? (kind === "bd" || kind === "br" ? kind : undefined),
+    current?.database ? `database ${current.database}` : undefined,
+    current?.readOnly
+      ? "read-only"
+      : capabilities
+        ? writableAreas.length > 0
+          ? `${writableAreas.join(" + ")} editable`
+          : "no narrow edits"
+        : undefined,
+  ].filter(Boolean).join(" · ");
   const dot = (
     <span
       title={isLive ? "Live — changes stream in instantly" : undefined}
@@ -91,6 +110,11 @@ export function ProjectSwitcher({
             >
               {taskLabel}
             </div>
+            {sourceDetails && (
+              <div title={sourceDetails} className="truncate text-[10px] text-[var(--text-3)]">
+                {sourceDetails}
+              </div>
+            )}
           </div>
           <ChevronsUpDown size={14} className="flex-shrink-0 text-[var(--text-3)]" />
         </DropdownMenuTrigger>
@@ -117,11 +141,16 @@ export function ProjectSwitcher({
             </DropdownMenuItem>
           ))}
 
+          {canRegister && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setAddOpen(true)}>
+                <Plus size={14} />
+                <span>Add project…</span>
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => setAddOpen(true)}>
-            <Plus size={14} />
-            <span>Add project…</span>
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => { onNavigate?.(); router.push("/"); }}>
             <LayoutGrid size={14} />
             <span>All projects</span>
@@ -129,7 +158,7 @@ export function ProjectSwitcher({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <FolderBrowserModal open={addOpen} onOpenChange={setAddOpen} />
+      {canRegister && <FolderBrowserModal open={addOpen} onOpenChange={setAddOpen} />}
     </>
   );
 }

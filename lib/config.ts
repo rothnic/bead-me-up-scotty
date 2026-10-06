@@ -2,6 +2,8 @@ import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { z } from "zod";
+import type { StoreCapabilities } from "./source";
 
 /**
  * Local app config (NOT stored in beads). Lives as a small JSON file under the
@@ -19,6 +21,16 @@ export interface ProjectEntry {
   /** ISO timestamps. */
   addedAt: string;
   lastOpened: string;
+  /** Explicit native backend/source policy for the managed registry. */
+  backend?: "bd" | "br";
+  nativeProjectId?: string | null;
+  database?: string;
+  sourceLabel?: string;
+  sourceScope?: string;
+  readOnly?: boolean;
+  capabilities?: StoreCapabilities;
+  city?: string;
+  rig?: string;
 }
 
 export interface AppConfig {
@@ -55,6 +67,23 @@ export class ConfigError extends Error {
   }
 }
 
+/** A non-empty registry file selects the explicit multi-source mode. */
+export function isManagedRegistryMode(): boolean {
+  const managed = Boolean(process.env.SCOTTY_PROJECTS_FILE?.trim());
+  if (!managed && process.env.SCOTTY_BR_REPO?.trim()) {
+    throw new ConfigError(
+      "SCOTTY_BR_REPO legacy mode is unsupported; configure an explicit managed registry with SCOTTY_PROJECTS_FILE",
+      "unsupported_mode",
+    );
+  }
+  return managed;
+}
+
+/** An operator may lock editing independently of the per-browser preference. */
+export function isHardReadOnly(): boolean {
+  return process.env.SCOTTY_HARD_READ_ONLY === "1" || process.env.SCOTTY_HARD_READ_ONLY === "true";
+}
+
 /**
  * SCOTTY_READ_ONLY=1 (or "true") supplies the default for new browser sessions.
  * The session cookie overrides that default when the user changes the mode.
@@ -64,6 +93,8 @@ export class ConfigError extends Error {
 export const VIEWER_MODE_COOKIE = "scotty-viewer-mode";
 
 export function isReadOnly(request?: Request): boolean {
+  isManagedRegistryMode();
+  if (isHardReadOnly()) return true;
   // This is a browser preference, not an authorization boundary. A session
   // cookie lets one browser override the launch default without affecting others.
   const cookie = request?.headers.get("cookie")?.split(";").map((v) => v.trim())
@@ -72,6 +103,25 @@ export function isReadOnly(request?: Request): boolean {
   if (cookie === "editing") return false;
   const v = process.env.SCOTTY_READ_ONLY;
   return v === "1" || v === "true";
+}
+
+/**
+ * Exact browser origin required for managed project-data writes. There is no
+ * default: a deployment that enables writes must declare its browser origin.
+ */
+export function configuredWriteOrigin(): string {
+  const raw = process.env.SCOTTY_WRITE_ORIGIN?.trim();
+  if (!raw) throw new ConfigError("SCOTTY_WRITE_ORIGIN is required for managed writes", "csrf_origin");
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new ConfigError("SCOTTY_WRITE_ORIGIN must be an absolute http(s) origin", "csrf_origin");
+  }
+  if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+    throw new ConfigError("SCOTTY_WRITE_ORIGIN must contain only an http(s) origin", "csrf_origin");
+  }
+  return parsed.origin;
 }
 
 /**
@@ -128,6 +178,33 @@ function realpathOrSelf(p: string): string {
     return path.resolve(p);
   }
 }
+
+function existingRealpath(p: string): string {
+  try {
+    return fs.realpathSync(path.resolve(p));
+  } catch {
+    throw new ConfigError(`Path does not exist: ${path.resolve(p)}`, "path_not_found");
+  }
+}
+
+/** Resolve both sides before containment checks so symlinks cannot escape. */
+export function canonicalPathWithinRoot(inputPath: string, rootPath: string): string {
+  const root = existingRealpath(rootPath);
+  const candidate = existingRealpath(inputPath);
+  const relative = path.relative(root, candidate);
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new ConfigError(`Path is outside the allowed root: ${candidate}`, "path_outside_root");
+  }
+  return candidate;
+}
+
+/** Explicit filesystem browsing root; managed registry mode never exposes it. */
+export function filesystemRoot(): string | null {
+  if (isManagedRegistryMode()) return null;
+  const configured = process.env.BEADS_FS_ROOT?.trim();
+  return configured ? existingRealpath(configured) : null;
+}
+
 function sameDir(a: string, b: string): boolean {
   return realpathOrSelf(a) === realpathOrSelf(b);
 }
@@ -157,6 +234,65 @@ function makeEntry(inputPath: string, taken: Set<string>): ProjectEntry {
     addedAt: now,
     lastOpened: now,
   };
+}
+
+const registryCapabilitiesSchema = z.object({
+  comments: z.boolean(),
+  priority: z.boolean(),
+}).strict();
+
+const registryEntrySchema = z.object({
+  id: z.string().min(1).regex(/^[a-z0-9][a-z0-9-]*$/),
+  name: z.string().min(1),
+  backend: z.enum(["bd", "br"]),
+  path: z.string().min(1),
+  nativeProjectId: z.string().min(1).nullable(),
+  database: z.string().min(1),
+  sourceLabel: z.string().min(1),
+  sourceScope: z.string().min(1),
+  readOnly: z.boolean(),
+  capabilities: registryCapabilitiesSchema,
+  city: z.string().min(1).optional(),
+  rig: z.string().min(1).optional(),
+}).strict();
+
+const registrySchema = z.array(registryEntrySchema).min(1);
+
+/**
+ * Load the explicit managed registry once per process. Registry paths are
+ * canonicalized and then required to remain exactly those canonical paths;
+ * this prevents a symlink or a browser registration from changing authority.
+ */
+function loadManagedProjects(): ProjectEntry[] {
+  const file = process.env.SCOTTY_PROJECTS_FILE?.trim();
+  if (!file) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (error) {
+    throw new ConfigError(`Could not read managed project registry: ${(error as Error).message}`, "registry_invalid");
+  }
+  const result = registrySchema.safeParse(parsed);
+  if (!result.success) {
+    throw new ConfigError(`Managed project registry is invalid: ${result.error.issues.map((i) => i.message).join("; ")}`, "registry_invalid");
+  }
+  const now = new Date().toISOString();
+  const seen = new Set<string>();
+  return result.data.map((entry) => {
+    if (seen.has(entry.id)) throw new ConfigError(`Duplicate managed project id: ${entry.id}`, "registry_invalid");
+    seen.add(entry.id);
+    const configured = path.resolve(entry.path);
+    const canonical = existingRealpath(configured);
+    if (canonical !== configured || !hasBeads(canonical)) {
+      throw new ConfigError(`Managed project path is not a canonical Beads root: ${entry.path}`, "registry_path_not_allowed");
+    }
+    return {
+      ...entry,
+      path: canonical,
+      addedAt: now,
+      lastOpened: now,
+    };
+  });
 }
 
 /** Drop malformed registry entries so a bad config file never crashes startup. */
@@ -191,6 +327,7 @@ let cached: AppConfig | null = null;
  */
 function persist(cfg: AppConfig): void {
   cached = cfg;
+  if (isManagedRegistryMode()) return;
   try {
     fs.mkdirSync(configDir(), { recursive: true });
     let base: Record<string, unknown> = {};
@@ -207,8 +344,19 @@ function persist(cfg: AppConfig): void {
 }
 
 export function getConfig(): AppConfig {
+  isManagedRegistryMode();
   if (cached) return cached;
   const d = defaults();
+
+  if (isManagedRegistryMode()) {
+    cached = {
+      ...d,
+      projects: loadManagedProjects(),
+      orders: {},
+      gamification: false,
+    };
+    return cached;
+  }
 
   let onDisk:
     | (Partial<AppConfig> & { repoPath?: string; demo?: boolean })
@@ -260,6 +408,9 @@ export function getConfig(): AppConfig {
 export function saveConfig(
   patch: Partial<Pick<AppConfig, "humanActor" | "humanAllowlist" | "pollIntervalMs" | "gamification">>,
 ): AppConfig {
+  if (isManagedRegistryMode()) {
+    throw new ConfigError("Managed project configuration is immutable", "read_only");
+  }
   const next = { ...getConfig(), ...patch };
   persist(next);
   return next;
@@ -272,14 +423,21 @@ export function listProjects(): ProjectEntry[] {
 }
 
 export function getProject(id: string): ProjectEntry | DemoProject | undefined {
+  if (isManagedRegistryMode()) {
+    return getConfig().projects.find((p) => p.id === id);
+  }
   if (id === DEMO_PROJECT.id) return DEMO_PROJECT;
   return getConfig().projects.find((p) => p.id === id);
 }
 
 /** Add (or re-touch) a project by folder path. Validates a `.beads` dir exists. */
 export function addProject(inputPath: string): ProjectEntry {
+  if (isManagedRegistryMode()) {
+    throw new ConfigError("Project registration is disabled for this immutable source registry", "read_only");
+  }
   const cfg = getConfig();
-  const abs = path.resolve(inputPath);
+  const root = filesystemRoot();
+  const abs = root ? canonicalPathWithinRoot(inputPath, root) : existingRealpath(inputPath);
   if (!hasBeads(abs)) {
     throw new ConfigError(`No .beads directory found in ${abs}`, "no_beads");
   }
@@ -296,6 +454,7 @@ export function addProject(inputPath: string): ProjectEntry {
 }
 
 export function removeProject(id: string): void {
+  if (isManagedRegistryMode()) throw new ConfigError("Managed project registry is immutable", "read_only");
   const cfg = getConfig();
   cfg.projects = cfg.projects.filter((p) => p.id !== id);
   // Drop any saved board ordering for the removed project so it can't orphan.
@@ -317,6 +476,7 @@ export function touchProject(id: string): void {
 }
 
 export function renameProject(id: string, name: string): ProjectEntry | undefined {
+  if (isManagedRegistryMode()) throw new ConfigError("Managed project registry is immutable", "read_only");
   const cfg = getConfig();
   const p = cfg.projects.find((x) => x.id === id);
   if (!p) return undefined;
@@ -338,6 +498,7 @@ export function setColumnOrder(
   columnId: string,
   ids: string[],
 ): Record<string, string[]> {
+  if (isManagedRegistryMode()) throw new ConfigError("Managed project configuration is immutable", "read_only");
   const cfg = getConfig();
   const proj = { ...(cfg.orders[projectId] ?? {}) };
   proj[columnId] = ids;
