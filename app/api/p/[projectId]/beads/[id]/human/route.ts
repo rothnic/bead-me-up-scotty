@@ -1,6 +1,6 @@
 import { getStore } from "@/lib/store";
 import { getConfig } from "@/lib/config";
-import { ok, fail } from "@/lib/api";
+import { ok, fail, assertUnmanagedOperation } from "@/lib/api";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +22,7 @@ const bodySchema = z.discriminatedUnion("action", [
  */
 export async function POST(req: Request, { params }: Ctx) {
   try {
+    assertUnmanagedOperation();
     const { projectId, id } = await params;
     const store = await getStore(projectId);
     const cfg = getConfig();

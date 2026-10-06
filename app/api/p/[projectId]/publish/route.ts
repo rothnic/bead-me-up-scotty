@@ -4,7 +4,7 @@ import { promisify } from "node:util";
 import fs from "node:fs";
 import { z } from "zod";
 import { buildShowcase, type ShowcaseTemplate } from "@/lib/showcase/generate";
-import { ok, fail } from "@/lib/api";
+import { ok, fail, assertUnmanagedOperation } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -33,6 +33,7 @@ async function openLocal(target: string) {
 
 export async function POST(req: Request, { params }: Ctx) {
   try {
+    assertUnmanagedOperation();
     const { projectId } = await params;
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 

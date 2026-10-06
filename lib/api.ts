@@ -40,6 +40,13 @@ export function assertConfiguredSameOrigin(req: Request): void {
   }
 }
 
+/** Block machine-level operations that have no managed-project capability. */
+export function assertUnmanagedOperation(): void {
+  if (isManagedRegistryMode()) {
+    throw new ConfigError("This operation is unavailable for managed projects", "capability_unavailable");
+  }
+}
+
 export function fail(err: unknown) {
   if (err instanceof AiError && err.code === "provider_prohibited") {
     return NextResponse.json({ error: err.message, code: err.code }, { status: 403 });

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { getProject, DEMO_PROJECT, ConfigError } from "@/lib/config";
-import { ok, fail } from "@/lib/api";
+import { ok, fail, assertUnmanagedOperation } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +35,7 @@ function safeSegment(s: string, fallback: string): string {
 // POST — multipart upload of one image. Fields: file, beadId (real id or draft token).
 export async function POST(req: Request, { params }: Ctx) {
   try {
+    assertUnmanagedOperation();
     const { projectId } = await params;
     const dir = attachmentsDir(projectId);
 
@@ -76,6 +77,7 @@ export async function POST(req: Request, { params }: Ctx) {
 // PUT — finalize: rename a draft attachment folder to the real bead id once it exists.
 export async function PUT(req: Request, { params }: Ctx) {
   try {
+    assertUnmanagedOperation();
     const { projectId } = await params;
     const dir = attachmentsDir(projectId);
     const body = (await req.json()) as { draftId?: string; beadId?: string };
