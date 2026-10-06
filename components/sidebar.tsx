@@ -57,6 +57,8 @@ export function Sidebar({
   projectName,
   live,
   taskStatus,
+  mobile = false,
+  onProjectNavigate,
 }: {
   view: View;
   onView: (v: View) => void;
@@ -65,6 +67,10 @@ export function Sidebar({
   projectName?: string;
   live?: boolean;
   taskStatus: { loading: boolean; fetching: boolean; error?: string; updatedAt: number; hasData: boolean };
+  /** Render the same navigation inside the mobile Sheet. */
+  mobile?: boolean;
+  /** Close an owning mobile Sheet after project routing. */
+  onProjectNavigate?: () => void;
 }) {
   const { mode, toggle } = useTheme();
   const { meta, beads, index } = useApp();
@@ -76,7 +82,11 @@ export function Sidebar({
   const game = useGamification(projectId, !!meta?.gamification);
 
   return (
-    <aside className="flex w-[228px] flex-shrink-0 flex-col border-r border-border bg-[var(--surface)] p-[18px_14px]">
+    <aside className={cn(
+      mobile
+        ? "flex h-full w-full min-w-0 flex-col overflow-y-auto border-0 bg-[var(--surface)] p-[18px_14px]"
+        : "hidden w-[228px] flex-shrink-0 flex-col border-r border-border bg-[var(--surface)] p-[18px_14px] md:flex",
+    )}>
       <div className="flex items-center gap-[10px] px-2 pb-[18px] pt-1">
         <div
           className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-[9px] text-white"
@@ -89,7 +99,14 @@ export function Sidebar({
         </div>
       </div>
 
-      <ProjectSwitcher projectId={projectId} projectName={projectName} kind={kind} live={live} taskStatus={taskStatus} />
+      <ProjectSwitcher
+        projectId={projectId}
+        projectName={projectName}
+        kind={kind}
+        live={live}
+        taskStatus={taskStatus}
+        onNavigate={onProjectNavigate}
+      />
 
 
       <nav className="flex flex-col gap-[2px]">

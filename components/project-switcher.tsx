@@ -19,6 +19,7 @@ export function ProjectSwitcher({
   kind,
   live,
   taskStatus,
+  onNavigate,
 }: {
   projectId: string;
   projectName?: string;
@@ -26,6 +27,8 @@ export function ProjectSwitcher({
   /** Whether the SSE change stream is connected (real projects only). */
   live?: boolean;
   taskStatus: { loading: boolean; fetching: boolean; error?: string; updatedAt: number; hasData: boolean };
+  /** Allows a containing mobile navigation Sheet to close after routing. */
+  onNavigate?: () => void;
 }) {
   const router = useRouter();
   const { data } = useProjects();
@@ -73,7 +76,10 @@ export function ProjectSwitcher({
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger className="mb-[6px] flex w-full items-center gap-[9px] rounded-[10px] border border-border bg-[var(--surface-2)] px-[11px] py-[9px] text-left hover:bg-[var(--surface-3)] focus:outline-none">
+        <DropdownMenuTrigger
+          aria-label={`Select project, current project ${currentName}`}
+          className="mb-[6px] flex w-full items-center gap-[9px] rounded-[10px] border border-border bg-[var(--surface-2)] px-[11px] py-[9px] text-left hover:bg-[var(--surface-3)] focus:outline-none"
+        >
           {dot}
           <div className="min-w-0 flex-1 leading-[1.15]">
             <div className="truncate text-[13px] font-[600] text-[var(--text)]">{currentName}</div>
@@ -93,7 +99,7 @@ export function ProjectSwitcher({
           <DropdownMenuLabel>Switch project</DropdownMenuLabel>
 
           {demo && (
-            <DropdownMenuItem onClick={() => router.push("/p/demo")}>
+            <DropdownMenuItem onClick={() => { onNavigate?.(); router.push("/p/demo"); }}>
               <span className="flex-1 truncate">Demo</span>
               {projectId === "demo" && <Check size={14} />}
             </DropdownMenuItem>
@@ -101,7 +107,7 @@ export function ProjectSwitcher({
 
           {recents.length > 0 && <DropdownMenuSeparator />}
           {recents.map((p) => (
-            <DropdownMenuItem key={p.id} onClick={() => router.push(`/p/${p.id}`)}>
+            <DropdownMenuItem key={p.id} onClick={() => { onNavigate?.(); router.push(`/p/${p.id}`); }}>
               <span
                 className="h-[6px] w-[6px] flex-shrink-0 rounded-full"
                 style={{ background: p.hasBeads ? "#22c55e" : "#ef4444" }}
@@ -116,7 +122,7 @@ export function ProjectSwitcher({
             <Plus size={14} />
             <span>Add project…</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push("/")}>
+          <DropdownMenuItem onClick={() => { onNavigate?.(); router.push("/"); }}>
             <LayoutGrid size={14} />
             <span>All projects</span>
           </DropdownMenuItem>

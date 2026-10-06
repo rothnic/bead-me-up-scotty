@@ -8,7 +8,7 @@ import { useBeadsStream } from "@/hooks/use-beads-stream";
 import { useLastView } from "@/hooks/use-last-view";
 import { useTheme } from "@/components/theme-provider";
 import { makeIndex } from "@/lib/beads-view";
-import { AppProvider, type DetailAction } from "@/components/app-context";
+import { AppProvider, type DetailAction, type View } from "@/components/app-context";
 import { Sidebar } from "@/components/sidebar";
 import { Board } from "@/components/board/board";
 import { FocusView } from "@/components/focus-view";
@@ -26,11 +26,14 @@ import { CreateBeadModal } from "@/components/create-bead-modal";
 import { KeyboardLayer } from "@/components/keyboard-layer";
 import { NotificationWatcher } from "@/components/notification-watcher";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
+import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useViewerMode } from "@/hooks/use-viewer-mode";
 import { useNotificationActivation } from "@/hooks/use-notifications";
+import { Menu } from "lucide-react";
 
 export function AppShell({ projectId, projectName }: { projectId: string; projectName?: string }) {
   const [view, setView] = useLastView();
+  const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const { toggle: toggleTheme } = useTheme();
   // Drawer navigation TRAIL, not a single id: clicking a subtask from its
   // parent used to replace the drawer outright, leaving no way back (GH #15).
@@ -181,6 +184,25 @@ export function AppShell({ projectId, projectName }: { projectId: string; projec
   }, []);
 
   const errorMessage = error ? (error as Error).message : undefined;
+  const setMobileView = React.useCallback((next: View) => {
+    setView(next);
+    setMobileNavOpen(false);
+  }, [setView]);
+  const taskStatus = {
+    loading: isLoading,
+    fetching: isFetching,
+    error: errorMessage,
+    updatedAt: dataUpdatedAt,
+    hasData: !!data,
+  };
+  React.useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 48rem)");
+    const onChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileNavOpen(false);
+    };
+    desktop.addEventListener("change", onChange);
+    return () => desktop.removeEventListener("change", onChange);
+  }, []);
 
   return (
     <AppProvider
@@ -203,6 +225,41 @@ export function AppShell({ projectId, projectName }: { projectId: string; projec
     >
       <div className="flex h-full flex-col overflow-hidden bg-background text-foreground text-sm">
         <ReadOnlyBanner reserveSpace={isLoading} />
+        <div className="flex shrink-0 items-center gap-2 border-b border-border bg-[var(--surface)] px-3 py-2 md:hidden">
+          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+            <SheetTrigger
+              type="button"
+              aria-label="Open navigation and project menu"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border border-border bg-[var(--surface-2)] text-[var(--text-2)] hover:bg-[var(--surface-3)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+            >
+              <Menu size={18} aria-hidden="true" />
+              <span className="sr-only">Open navigation and project menu</span>
+            </SheetTrigger>
+            <SheetContent
+              side="left"
+              className="w-[min(88vw,300px)] max-w-[88vw] gap-0 overflow-hidden border-r border-border bg-[var(--surface)] p-0"
+            >
+              <SheetTitle className="sr-only">Project and view navigation</SheetTitle>
+              <SheetDescription className="sr-only">
+                Choose a project or review view.
+              </SheetDescription>
+              <Sidebar
+                mobile
+                view={view}
+                onView={setMobileView}
+                kind={data?.meta?.kind}
+                projectId={projectId}
+                projectName={projectName}
+                live={live}
+                taskStatus={taskStatus}
+                onProjectNavigate={() => setMobileNavOpen(false)}
+              />
+            </SheetContent>
+          </Sheet>
+          <div className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-[var(--text)]">
+            Bead Me Up Scotty
+          </div>
+        </div>
         <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar
           view={view}
@@ -211,13 +268,7 @@ export function AppShell({ projectId, projectName }: { projectId: string; projec
           projectId={projectId}
           projectName={projectName}
           live={live}
-          taskStatus={{
-            loading: isLoading,
-            fetching: isFetching,
-            error: errorMessage,
-            updatedAt: dataUpdatedAt,
-            hasData: !!data,
-          }}
+          taskStatus={taskStatus}
         />
         <main className="relative flex min-w-0 flex-1 flex-col">
           {errorMessage && !data && view !== "settings" ? (
