@@ -17,8 +17,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProjectPage({ params }: Props) {
   const { projectId } = await params;
+  // Resolve identity from the server-side project registry before the Beads
+  // request begins. The client query fills task content independently.
+  const project = getProject(projectId);
   // A project route owns transient UI state (drawer trails, palettes, and the
   // notification watcher baseline). A distinct key prevents state from one
   // client-side project visit leaking into the next one.
-  return <Suspense fallback={<div className="p-6 text-sm">Loading project…</div>}><AppShell key={projectId} projectId={projectId} /></Suspense>;
+  return <Suspense fallback={<div className="p-6 text-sm">Loading project…</div>}><AppShell key={projectId} projectId={projectId} projectName={project?.name} /></Suspense>;
 }

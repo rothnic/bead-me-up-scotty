@@ -30,21 +30,26 @@ function parse(raw: string) {
   } catch { return DEFAULTS; }
 }
 
-export function ReadOnlyBanner() {
-  const { data, change } = useViewerMode();
+export function ReadOnlyBanner({ reserveSpace = false }: { reserveSpace?: boolean }) {
+  const { data, change, isLoading } = useViewerMode();
   const [open, setOpen] = React.useState(false);
   const raw = React.useSyncExternalStore(subscribe, snapshot, () => INITIAL);
   const prefs = React.useMemo(() => parse(raw), [raw]);
+  const bannerHeight = prefs.size === "large" ? 48 : 28;
   function update(patch: Partial<typeof DEFAULTS>) {
     savePreferences(JSON.stringify({ ...prefs, ...patch }));
   }
-  if (!data?.readOnly) return null;
+  if (!data?.readOnly) {
+    return isLoading || reserveSpace
+      ? <div aria-hidden="true" className="w-full shrink-0" style={{ height: bannerHeight }} />
+      : null;
+  }
   return <>
     <button
       type="button" aria-label="Read Only Mode" title="Read Only Mode — click to customize or enable editing"
       onClick={() => setOpen(true)}
       className="flex w-full shrink-0 items-center justify-center gap-2 border-b border-black/10 px-3 font-semibold focus-visible:outline-2 focus-visible:outline-offset-[-3px]"
-      style={{ backgroundColor: prefs.background, color: prefs.text, minHeight: prefs.size === "large" ? 48 : 28, fontSize: prefs.size === "large" ? 15 : 12 }}
+      style={{ backgroundColor: prefs.background, color: prefs.text, minHeight: bannerHeight, fontSize: prefs.size === "large" ? 15 : 12 }}
     >
       <LockKeyhole size={14} aria-hidden="true" />Read Only Mode
     </button>

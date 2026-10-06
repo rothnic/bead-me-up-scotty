@@ -2,7 +2,9 @@
 import * as React from "react";
 import {
   DndContext,
-  PointerSensor,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   closestCenter,
@@ -11,6 +13,7 @@ import {
 import {
   SortableContext,
   verticalListSortingStrategy,
+  sortableKeyboardCoordinates,
   useSortable,
   arrayMove,
 } from "@dnd-kit/sortable";
@@ -70,7 +73,11 @@ export function ListView() {
   // One pass, not childrenOf() per row (that would be O(n^2)).
   const childCounts = React.useMemo(() => childrenCountMap(beads), [beads]);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   // Which board column each bead belongs to (shared with the Board view).
   const colById = React.useMemo(() => {
@@ -150,8 +157,8 @@ export function ListView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex flex-shrink-0 items-center gap-3 border-b border-border bg-[var(--surface)] p-[14px_22px]">
-        <div className="mr-1 flex flex-col gap-px">
+      <header className="flex flex-shrink-0 flex-wrap items-start gap-3 border-b border-border bg-[var(--surface)] p-[12px_14px] md:items-center md:p-[14px_22px]">
+        <div className="mr-1 flex w-full min-w-0 flex-col gap-px md:w-auto">
           <h1 className="m-0 text-base font-[650] tracking-[-.01em]">List</h1>
           <span className="text-[11.5px] text-[var(--text-3)]">
             {rows.length} beads · drag to set run-order
@@ -254,7 +261,7 @@ function Row({
   humanAllowlist: string[];
 }) {
   const { readOnly, selectedBeadId, selectBead } = useApp();
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: bead.id,
     disabled: readOnly,
   });
@@ -270,8 +277,6 @@ function Row({
   return (
     <div
       ref={setNodeRef}
-      {...listeners}
-      {...(readOnly ? {} : attributes)}
       role="button"
       tabIndex={0}
       data-keyboard-bead-id={bead.id}
@@ -288,12 +293,26 @@ function Row({
         opacity: isDragging ? 0.4 : 1,
         zIndex: isDragging ? 10 : undefined,
       }}
-      className={`flex w-full cursor-pointer touch-none items-center gap-3 rounded-[10px] border bg-[var(--surface)] px-[13px] py-[9px] text-left transition-[border-color,box-shadow] hover:border-[var(--border-strong)] hover:shadow-[var(--shadow)] focus-visible:outline-none ${
+      className={`flex w-full cursor-pointer touch-pan-y items-center gap-3 rounded-[10px] border bg-[var(--surface)] px-[13px] py-[9px] text-left transition-[border-color,box-shadow] hover:border-[var(--border-strong)] hover:shadow-[var(--shadow)] focus-visible:outline-none ${
         selectedBeadId === bead.id
           ? "border-[var(--brand)] ring-2 ring-[var(--brand)]/30"
           : "border-border"
       }`}
     >
+      {!readOnly && (
+        <button
+          ref={setActivatorNodeRef}
+          type="button"
+          {...attributes}
+          {...listeners}
+          aria-label={`Reorder ${bead.id}`}
+          title="Drag to reorder"
+          onClick={(event) => event.stopPropagation()}
+          className="flex h-8 w-6 flex-shrink-0 touch-none cursor-grab items-center justify-center rounded text-[var(--text-3)] active:cursor-grabbing"
+        >
+          <span aria-hidden="true" className="text-lg leading-none">⠿</span>
+        </button>
+      )}
       <span
         className="h-[9px] w-[9px] flex-shrink-0 rounded-full"
         style={{ background: blocked ? "#ef4444" : catColor(bead.status) }}

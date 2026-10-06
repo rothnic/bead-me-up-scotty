@@ -29,7 +29,7 @@ import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { useViewerMode } from "@/hooks/use-viewer-mode";
 import { useNotificationActivation } from "@/hooks/use-notifications";
 
-export function AppShell({ projectId }: { projectId: string }) {
+export function AppShell({ projectId, projectName }: { projectId: string; projectName?: string }) {
   const [view, setView] = useLastView();
   const { toggle: toggleTheme } = useTheme();
   // Drawer navigation TRAIL, not a single id: clicking a subtask from its
@@ -61,7 +61,7 @@ export function AppShell({ projectId }: { projectId: string }) {
     type?: BeadType;
   }>({ open: false, parent: "" });
 
-  const { data, isLoading, error } = useBeads(projectId);
+  const { data, isLoading, isFetching, dataUpdatedAt, error } = useBeads(projectId);
   // Live push: refetch the moment this project's .beads/ mutates, instead of
   // waiting for the fallback poll interval. `live` drives the sidebar indicator.
   const { live } = useBeadsStream(projectId);
@@ -202,17 +202,25 @@ export function AppShell({ projectId }: { projectId: string }) {
       }}
     >
       <div className="flex h-full flex-col overflow-hidden bg-background text-foreground text-sm">
-        <ReadOnlyBanner />
+        <ReadOnlyBanner reserveSpace={isLoading} />
         <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar
           view={view}
           onView={setView}
           kind={data?.meta?.kind}
           projectId={projectId}
+          projectName={projectName}
           live={live}
+          taskStatus={{
+            loading: isLoading,
+            fetching: isFetching,
+            error: errorMessage,
+            updatedAt: dataUpdatedAt,
+            hasData: !!data,
+          }}
         />
         <main className="relative flex min-w-0 flex-1 flex-col">
-          {errorMessage && view !== "settings" ? (
+          {errorMessage && !data && view !== "settings" ? (
             <div className="flex flex-1 items-center justify-center p-8">
               <div className="max-w-md rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
                 <p className="text-sm font-medium text-destructive">Couldn’t open this project</p>

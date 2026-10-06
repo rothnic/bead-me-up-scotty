@@ -54,7 +54,7 @@ export function FilterBar({
 
   return (
     <>
-      <div className="flex h-9 max-w-[280px] flex-1 items-center gap-[7px] rounded-[9px] border border-border bg-[var(--surface-2)] px-[11px]">
+      <div className="flex h-9 w-full max-w-none flex-1 items-center gap-[7px] rounded-[9px] border border-border bg-[var(--surface-2)] px-[11px] md:max-w-[280px]">
         <Icon name="search" size={15} className="flex-shrink-0 text-[var(--text-3)]" />
         <input
           data-search
@@ -65,7 +65,12 @@ export function FilterBar({
         />
       </div>
 
-      <div className="flex items-center gap-[7px]">
+      <div
+        aria-label="Bead filters"
+        role="group"
+        tabIndex={0}
+        className="filter-strip-scrollbar-hidden flex min-w-0 max-w-full items-center gap-[7px] overflow-x-auto pb-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:max-w-none md:overflow-visible md:pb-0"
+      >
         <MultiSelectFilter
           label="Status"
           options={BEAD_STATUSES.map((s) => ({ value: s, label: statusLabel(s) }))}
